@@ -1,10 +1,4 @@
-"""
-This script builds ONE opinion-similarity network over all 87 respondents
-using their combined responses across all 60 survey questions (Technology,
-Education, Society & Ethics, Environment). The four domains are NOT built
-as four separate networks — they are used afterwards to characterise the
-communities that emerge from the single combined network.
-"""
+"""Build one combined opinion-similarity network and profile its communities."""
 
 import pandas as pd
 import numpy as np
@@ -20,13 +14,12 @@ from itertools import combinations
 
 RNG_SEED = 42
 
-# 1. Load data and define domains
+# Load data and domains
 df_raw = pd.read_csv("Survey_Results_UC_cleaned.csv")
 
 opinion_cols = [c for c in df_raw.columns if c.startswith(("T", "E", "S", "V"))]
 
-# T = Technology, E = Education
-# S = Society & Ethics, V = Environment
+# T = Technology, E = Education; S = Society & Ethics, V = Environment
 domain_cols = {
     "Technology"       : [c for c in opinion_cols if c.startswith("T")],
     "Education"        : [c for c in opinion_cols if c.startswith("E")],
@@ -41,7 +34,7 @@ print(f"Opinion questions : {len(opinion_cols)}")
 for domain, cols in domain_cols.items():
     print(f"{domain:18s}: {len(cols)} questions")
 
-# Check for missing values
+# Check missing values
 missing = df_raw[opinion_cols].isnull().sum()
 total_missing = missing.sum()
 total_cells = len(df_raw) * len(opinion_cols)
@@ -49,7 +42,7 @@ print(f"\nMissing values : {total_missing}/{total_cells} "
       f"({100*total_missing/total_cells:.2f}%)")
 print("Missing values are replaced using the median of each question.")
 
-# 2. Clean data
+# Clean data
 df = df_raw[["respondent_id"] + opinion_cols].copy()
 df = df.set_index("respondent_id")
 
@@ -69,8 +62,7 @@ print(f"Duplicate response patterns : {dupes}")
 df = df.apply(lambda col: col.fillna(col.median()), axis=0)
 print(f"Clean data : {df.shape[0]} respondents x {df.shape[1]} questions")
 
-# 3. Check for possible reverse-coded questions
-# Strong negative correlations may indicate a reverse-coded item.
+# Check reverse-coded questions
 print("\nReverse-coding check")
 reverse_flags = []
 for dname, cols in domain_cols.items():
@@ -87,7 +79,7 @@ if reverse_flags:
 else:
     print("No candidate reverse-coded pairs found.")
 
-# 4. Anonymize respondent IDs
+# Anonymize respondent IDs
 respondents_raw = df.index.tolist()
 n = len(respondents_raw)
 
@@ -96,21 +88,20 @@ shuffled_ranks = rng.permutation(n)
 id_map = {respondents_raw[i]: f"P{shuffled_ranks[i]+1:03d}" for i in range(n)}
 respondents = [id_map[r] for r in respondents_raw]
 
-df.index = respondents          # replace index with anonymous IDs
+df.index = respondents          # use anonymous IDs
 df.index.name = "anon_id"
 
-# Keep the mapping locally only; do not submit it.
+# Keep the mapping local.
 pd.DataFrame({"respondent_id": respondents_raw,
               "anon_id": respondents}).to_csv(
     "id_mapping_DO_NOT_SUBMIT.csv", index=False)
 print(f"\nRespondent IDs changed to P001-P{n:03d}")
 
-# 5. Standardize responses and calculate cosine similarity
-# Standardization makes the similarity depend on response patterns.
+# Standardize responses and calculate similarity
 scaler = StandardScaler()
 opinion_matrix = scaler.fit_transform(df.values.astype(float))
 
-sim_matrix = cosine_similarity(opinion_matrix)  # range [-1, 1]
+sim_matrix = cosine_similarity(opinion_matrix)  # range: -1 to 1
 upper_tri_vals = sim_matrix[np.triu_indices(n, k=1)]
 
 print("\nSimilarity Matrix")
@@ -118,7 +109,7 @@ print(f"Shape : {sim_matrix.shape}")
 print(f"Range : {sim_matrix.min():.4f} to {sim_matrix.max():.4f}")
 print(f"Mean  : {sim_matrix.mean():.4f}")
 
-# 6. Compare different similarity thresholds
+# Compare different similarity thresholds
 print("\nThreshold Sensitivity")
 print("-" * 65)
 print(f"{'Pctl':>5} {'Thresh':>8} {'Edges':>7} {'Density':>8} "
@@ -157,7 +148,7 @@ for pct in [60, 70, 75, 80, 90]:
 pd.DataFrame(sensitivity_rows).to_csv("threshold_sensitivity.csv", index=False)
 print("\n75th percentile selected for the final network.")
 
-# 7. Build the final network
+# Build the final network
 THRESHOLD = np.percentile(upper_tri_vals, 75)
 
 G = nx.Graph()
@@ -175,7 +166,7 @@ avg_degree = 2 * G.number_of_edges() / G.number_of_nodes()
 is_connected = nx.is_connected(G)
 largest_cc_nodes = max(nx.connected_components(G), key=len)
 
-# Calculate path length on the largest connected component.
+# Calculate paths on the largest component.
 G_lcc = G.subgraph(largest_cc_nodes)
 avg_spl = nx.average_shortest_path_length(G_lcc, weight="distance")
 
@@ -192,10 +183,9 @@ print(f"Avg weighted shortest path len : {avg_spl:.4f}  "
       f"(on largest component; weight = 1 - similarity)")
 print(f"Threshold                      : {THRESHOLD:.4f} (75th percentile)")
 
-# 8. Calculate centrality measures
-# Path-based measures use distance = 1 - similarity.
-degree_centrality = nx.degree_centrality(G)          # unweighted: # of connections
-strength = dict(G.degree(weight="weight"))            # weighted: sum of similarity
+# Calculate centrality measures
+degree_centrality = nx.degree_centrality(G)          # unweighted degree
+strength = dict(G.degree(weight="weight"))          # weighted degree
 betweenness_centrality = nx.betweenness_centrality(G, weight="distance")
 closeness_centrality = nx.closeness_centrality(G, distance="distance")
 clustering_coeff = nx.clustering(G, weight="weight")
@@ -211,7 +201,7 @@ print("\nTop 5 respondents by degree centrality:")
 for node, val in top5:
     print(f"  {node}: {val:.4f}  (strength={strength[node]:.3f})")
 
-# 9. Detect communities using Louvain
+# Detect communities using Louvain
 partition = community_louvain.best_partition(G, weight="weight",
                                               random_state=RNG_SEED)
 num_communities = len(set(partition.values()))
@@ -230,23 +220,23 @@ if small_comms:
     print("  likely outlier respondents rather than substantive opinion")
     print("  clusters and should not be over-interpreted.")
 
-# 10. Compare communities across the four domains
+# Compare communities across the four domains
 print("\nDomain Analysis")
 print("-" * 40)
 
-# Mean response for each domain
+# Calculate domain means.
 domain_scores = pd.DataFrame(index=df.index)
 for domain, cols in domain_cols.items():
     valid = [c for c in cols if c in df.columns]
     domain_scores[domain] = df[valid].mean(axis=1)
 
-# Correlation between domain scores
+# Calculate domain correlations.
 domain_corr = domain_scores.corr()
 print("\nCorrelation between domain-average opinions across respondents:")
 print(domain_corr.round(3).to_string())
 domain_corr.to_csv("domain_correlations.csv")
 
-# Compare how much each domain differs between communities.
+# Compare domains across communities.
 domain_scores["community"] = [partition[r] for r in domain_scores.index]
 print("\nCommunity separation by domain:")
 eta_sq = {}
@@ -261,7 +251,7 @@ for domain in domain_cols.keys():
 
 pd.DataFrame([eta_sq]).to_csv("domain_eta_squared.csv", index=False)
 
-# Average domain score for each community
+# Calculate community profiles.
 print("\nCommunity profiles:")
 domain_profiles = {}
 for cid in sorted(community_sizes.keys()):
@@ -276,7 +266,7 @@ print(profile_df.to_string(index=False))
 profile_df.to_csv("community_profiles.csv", index=False)
 print("\nSaved domain analysis files.")
 
-# 11. Save node metrics
+# Save node metrics
 metrics_df = pd.DataFrame({
     "anon_id"               : list(degree_centrality.keys()),
     "community"             : [partition[k] for k in degree_centrality.keys()],
@@ -289,7 +279,7 @@ metrics_df = pd.DataFrame({
 metrics_df.to_csv("node_metrics.csv", index=False)
 print("Saved node_metrics.csv")
 
-# 12. Save network summary
+# Save network summary
 summary = {
     "nodes"                       : G.number_of_nodes(),
     "edges"                       : G.number_of_edges(),
@@ -311,7 +301,7 @@ summary = {
 pd.DataFrame([summary]).to_csv("network_summary.csv", index=False)
 print("Saved network_summary.csv")
 
-# 13. Save the graph
+# Save the graph
 for node in G.nodes():
     G.nodes[node]["community"]         = partition[node]
     G.nodes[node]["degree_centrality"] = round(degree_centrality[node], 4)
@@ -320,7 +310,7 @@ for node in G.nodes():
 nx.write_graphml(G, "opinion_network.graphml")
 print("Saved opinion_network.graphml")
 
-# 14. Create visualizations
+# Create visualizations
 pos = nx.spring_layout(G, seed=RNG_SEED, k=0.5)
 
 cmap_comm = matplotlib.colormaps["tab20"].resampled(num_communities)
