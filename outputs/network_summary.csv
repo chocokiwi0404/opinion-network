@@ -1,0 +1,2 @@
+nodes,edges,average_degree,density,threshold,threshold_percentile,similarity_metric,is_connected,num_components,largest_component_size,avg_weighted_shortest_path,avg_clustering,num_communities,modularity,avg_degree_centrality,avg_weighted_strength
+87,936,21.5172,0.2502,0.1277,75,cosine_similarity (standardized inputs),True,1,87,1.3993,0.1795,4,0.4202,0.2502,5.5271
