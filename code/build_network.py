@@ -1,4 +1,4 @@
-"""Build one combined opinion-similarity network and profile its communities."""
+"""Build one combined opinion similarity network and profile its communities."""
 
 import pandas as pd
 import numpy as np
@@ -27,8 +27,8 @@ domain_cols = {
     "Environment"      : [c for c in opinion_cols if c.startswith("V")],
 }
 
-print("\nDataset Summary")
-print("-" * 40)
+print("\nDataset Summary:")
+
 print(f"Total respondents : {len(df_raw)}")
 print(f"Opinion questions : {len(opinion_cols)}")
 for domain, cols in domain_cols.items():
@@ -51,10 +51,10 @@ assert df.apply(pd.api.types.is_numeric_dtype).all(), \
 
 zero_var = df.columns[df.nunique() <= 1].tolist()
 if zero_var:
-    print(f"\nRemoving zero-variance questions: {zero_var}")
+    print(f"\nRemoving zero variance questions: {zero_var}")
     df = df.drop(columns=zero_var)
 else:
-    print("\nNo zero-variance questions found")
+    print("\nNo zero variance questions found")
 
 dupes = df.duplicated().sum()
 print(f"Duplicate response patterns : {dupes}")
@@ -62,8 +62,8 @@ print(f"Duplicate response patterns : {dupes}")
 df = df.apply(lambda col: col.fillna(col.median()), axis=0)
 print(f"Clean data : {df.shape[0]} respondents x {df.shape[1]} questions")
 
-# Check reverse-coded questions
-print("\nReverse-coding check")
+# Check reverse coded questions
+print("\nReverse coding check")
 reverse_flags = []
 for dname, cols in domain_cols.items():
     corr = df[cols].corr()
@@ -75,9 +75,9 @@ for dname, cols in domain_cols.items():
 if reverse_flags:
     for dname, c1, c2, r in reverse_flags:
         print(f"  {dname}: {c1} - {c2} (corr={r})")
-    print("No questions were reverse-coded.")
+    print("No questions were reverse coded.")
 else:
-    print("No candidate reverse-coded pairs found.")
+    print("No candidate reverse coded pairs found.")
 
 # Anonymize respondent IDs
 respondents_raw = df.index.tolist()
@@ -110,8 +110,8 @@ print(f"Range : {sim_matrix.min():.4f} to {sim_matrix.max():.4f}")
 print(f"Mean  : {sim_matrix.mean():.4f}")
 
 # Compare different similarity thresholds
-print("\nThreshold Sensitivity")
-print("-" * 65)
+print("\nThreshold Sensitivity:")
+
 print(f"{'Pctl':>5} {'Thresh':>8} {'Edges':>7} {'Density':>8} "
       f"{'Comps':>6} {'Isolates':>9} {'Modularity':>11}")
 
@@ -170,8 +170,8 @@ largest_cc_nodes = max(nx.connected_components(G), key=len)
 G_lcc = G.subgraph(largest_cc_nodes)
 avg_spl = nx.average_shortest_path_length(G_lcc, weight="distance")
 
-print("\nNetwork Summary")
-print("-" * 40)
+print("\nNetwork Summary:")
+
 print(f"Nodes                          : {G.number_of_nodes()}")
 print(f"Edges                          : {G.number_of_edges()}")
 print(f"Average degree                 : {avg_degree:.2f}")
@@ -190,8 +190,8 @@ betweenness_centrality = nx.betweenness_centrality(G, weight="distance")
 closeness_centrality = nx.closeness_centrality(G, distance="distance")
 clustering_coeff = nx.clustering(G, weight="weight")
 
-print("\nCentrality Measures")
-print("-" * 40)
+print("\nCentrality Measures:")
+
 print(f"Avg degree centrality : {np.mean(list(degree_centrality.values())):.4f}")
 print(f"Avg weighted strength : {np.mean(list(strength.values())):.4f}")
 print(f"Avg clustering coeff  : {np.mean(list(clustering_coeff.values())):.4f}")
@@ -208,8 +208,8 @@ num_communities = len(set(partition.values()))
 modularity = community_louvain.modularity(partition, G, weight="weight")
 community_sizes = Counter(partition.values())
 
-print("\nCommunity Detection")
-print("-" * 40)
+print("\nCommunity Detection:")
+
 print(f"Communities detected : {num_communities}")
 print(f"Modularity            : {modularity:.4f}")
 for cid, size in sorted(community_sizes.items()):
@@ -218,11 +218,10 @@ small_comms = [c for c, s in community_sizes.items() if s <= 3]
 if small_comms:
     print(f"\n  Note: communities {small_comms} have <=3 members. These are")
     print("  likely outlier respondents rather than substantive opinion")
-    print("  clusters and should not be over-interpreted.")
+    print("  clusters and should not be over interpreted.")
 
 # Compare communities across the four domains
-print("\nDomain Analysis")
-print("-" * 40)
+print("\nDomain Analysis:")
 
 # Calculate domain means.
 domain_scores = pd.DataFrame(index=df.index)
@@ -232,7 +231,7 @@ for domain, cols in domain_cols.items():
 
 # Calculate domain correlations.
 domain_corr = domain_scores.corr()
-print("\nCorrelation between domain-average opinions across respondents:")
+print("\nCorrelation between domain average opinions across respondents:")
 print(domain_corr.round(3).to_string())
 domain_corr.to_csv("domain_correlations.csv")
 
